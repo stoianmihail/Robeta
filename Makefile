@@ -1,3 +1,3 @@
-omega:	radix.cpp
-	g++ -std=c++17 -O3 radix.cpp
+main:	main.cpp
+	g++ -std=c++17 -O3 main.cpp
 

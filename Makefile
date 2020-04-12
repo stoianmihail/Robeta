@@ -1,3 +1,3 @@
-main:	main.cpp
-	g++ -std=c++17 -O3 main.cpp
+main:	simple.cpp
+	g++ -std=c++17 -O3 simple.cpp
 

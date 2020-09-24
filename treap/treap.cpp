@@ -1,14 +1,30 @@
 #include <iostream>
 #include <algorithm>
 #include <vector>
+#include <random>
+#include <iterator>
+#include <functional>
 
 using namespace std;
 
+typedef pair<double, double> Coord;
+
+template<class K, 
+struct treap {
+  Coord coord;
+  int prior;
+  treap *l, *r;
+  treap() {}
+  treap(Coord coord, int prior) : coord(coord), prior(prior), l(nullptr), r(nullptr) {}
+};
+
 struct item {
-    int key, prior;
-    item * l, * r;
-    item() { }
-    item (int key, int prior) : key(key), prior(prior), l(NULL), r(NULL) { }
+  double key;
+  int prior;
+  treap* segment;
+  item *l, *r;
+  item() {}
+  item (int key, int prior) : key(key), prior(prior), l(nullptr), r(nullptr) {}
 };
 typedef item * pitem;
 
@@ -68,7 +84,91 @@ pitem unite (pitem l, pitem r) {
     return l;
 }
 
-int main(void) {
+vector<Coord> generator(size_t size) {
+  vector<Coord> data(size);
+  
+  // First create an instance of an engine.
+  random_device rnd_device;
+  
+  // Specify the engine and distribution.
+  mt19937 mersenne_engine {rnd_device()};
+  
+  // Generates random integers
+  uniform_int_distribution<uint64_t> dist {0, numeric_limits<uint64_t>::max()};
+
+  auto gen = [&dist, &mersenne_engine]() {
+    return dist(mersenne_engine);
+  };
+
+  for (unsigned index = 0; index != size; ++index)
+    data[index] = make_pair(gen(), index);
+  sort(data.begin(), data.end());
+  return data;
+}
+
+static vector<Coord> buildCdf(const vector<Coord>& data) {
+  vector<Coord> cdf;
+  
+  // Determine for each distinct key, where its first occurrence appeared
+  uint32_t pos = 0, refresh = 0;
+  double last = data.front().first;
+  for (auto d : data) {
+    if (d.first != last) {
+      cdf.push_back({last, refresh});
+      refresh = pos;
+      last = d.first;
+    }
+    pos++;
+  }
+  // And add the last point
+  cdf.push_back({last, refresh});
+  return cdf;
+}
+
+static vector<Coord> tautString(const vector<Coord>& data, double epsilon) {
+  // Add the first point
+  vector<Coord> result;
+  if (data.empty())
+    return result;
+  result.push_back(data.front());
+  if (data.size() == 1)
+    return result;
+
+  // Taut the string
+  vector<Coord>::const_iterator iter = data.begin(), limit = data.end();
+  Coord upperLimit,lowerLimit,last=result.back();
+
+  for (++iter; iter!=limit; ++iter) {
+    // Add the new bounds
+    Coord u = *iter, l = *iter, b = result.back();
+    u.second += epsilon; l.second -= epsilon;
+
+    // Check if we cut the error corridor
+    if ((last != b) && ((cmpDevs(b, upperLimit, *iter) < 0) || (cmpDevs(b, lowerLimit, *iter) > 0))) {
+      result.push_back(last);
+      b = last;
+    }
+
+    // Update the error margins
+    if ((last == b) || (cmpDevs(b, upperLimit, u) > 0))
+      upperLimit = u;
+    if ((last == b) || (cmpDevs(b, lowerLimit, l) < 0))
+      lowerLimit = l;
+
+    // And remember the current point
+    last = *iter;
+  }
+
+  // Add the last point
+  result.push_back(*(--data.end()));
+  return result;
+}
+
+int main(int argc, char** argv) {
+  if (!argc) {
+    cerr << "Did you forget the size of data?" << endl;
+    return -1;
+  }
   pitem t = nullptr;
   
   unsigned n = 10;
@@ -88,8 +188,30 @@ int main(void) {
   split(t, 5, l, r);
   cerr << "after split" << endl;
   
+  size_t size = atoi(argv[1]);
+  vector<Coord> data = generator(size);
+
+#if 0  
+  for (unsigned index = 0; index != size; ++index) {
+    cerr << data[index].first << ", " << data[index].second << endl;
+  }
+#endif
+
+  vector<Coord> cdf = buildCdf(data);
+  vector<Coord> spline = tautString(cdf, 2);
   
-  for (unsigned index = 0; index != n; ++index) {
-    cerr << index << " : left=" << search(l, index) << " right=" << search(r, index) << endl;
+  unsigned ptr = 0;
+  for (unsigned index = 0, limit = spline.size(); index != limit - 1; ++index) {
+    treap *segment = nullptr;
+    while ((ptr != cdf.size()) && (cdf[index] != spline[index + 1])) {
+      insert(segment, cdf[index]);
+      ++ptr;
+    }
+  }
+  
+  for (auto elem : cdf) {
+    if (elem == currKnot) {
+      
+    }
   }
 }
